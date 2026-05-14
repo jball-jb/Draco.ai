@@ -744,9 +744,9 @@
 <!-- API KEY MODAL -->
 <div class="modal-overlay" id="apiModal">
   <div class="modal">
-    <h3>🔑 API KEY REQUERIDA</h3>
-    <p>Para que tu IA funcione necesitas una API Key de Anthropic (Claude). Es gratuita para empezar.</p>
-    <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." autocomplete="off">
+    <h3>🔑 CLAVE DE GROQ REQUERIDA</h3>
+    <p>Para que tu IA funcione necesitas una API Key de GROQ . Es gratuita para empezar.</p>
+    <input type="password" id="apiKeyInput" placeholder="placeholder="gsk_..." autocomplete="off">
     <div class="modal-hint">
       📋 Consigue tu key gratis en <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a><br>
       🔒 Tu key se guarda solo en este navegador, nunca se envía a ningún servidor externo.
@@ -893,22 +893,20 @@
 </div>
 
 <script>
-// ── CONFIGURACIÓN DE PINECONE (Tus llaves de la imagen) ──
-const PINECONE_API_KEY = 'pcsk_5WZWEp_M8UGNhSVDpUk9HAv13JA4fCLDqZYP1W5JdDxpNu6desULi6SVDURrYHA8Ky3NZF';
-const PINECONE_HOST = 'https://ia-memoria-r72pvtk.svc.aped-4627-b74a.pinecone.io';
+// ── 1. CONFIGURACIÓN DE APIS (Tus datos de Pinecone) ──
+const PINECONE_API_KEY = 'pcsk_5WZWEp_M8UGNhSVDpUk9HAv13JA4fCLDqZYP1W5JdDxpNu6desULi6SVDURrYHA8Ky3NZF'; //
+const PINECONE_HOST = 'https://ia-memoria-r72pvtk.svc.aped-4627-b74a.pinecone.io'; //
 
-// ── STATE ──
-let apiKey = localStorage.getItem('mia_apikey') || '';
+// ── 2. STATE ──
+let apiKey = localStorage.getItem('mia_apikey') || ''; 
 let isDemoMode = !apiKey;
 let isLoading = false;
 let conversationHistory = [];
 let config = JSON.parse(localStorage.getItem('mia_config') || 'null') || {
   name: 'ARIA', emoji: '🤖', spec: 'informatica', tone: 'tecnico', extra: '', color: '#00ff88', color2: '#00bfff'
-};
+}; //
 
-// ── FUNCIONES DE MEMORIA (PINECONE) ──
-
-// Genera un vector simple para simular embeddings (Dimensiones: 1024)
+// ── 3. FUNCIONES DE MEMORIA (PINECONE) ──
 function generateEmbedding(text) {
     let vector = new Array(1024).fill(0);
     for (let i = 0; i < text.length; i++) {
@@ -917,7 +915,6 @@ function generateEmbedding(text) {
     return vector;
 }
 
-// Guarda información en Pinecone
 async function guardarEnPinecone(texto) {
     const vector = generateEmbedding(texto);
     try {
@@ -932,7 +929,6 @@ async function guardarEnPinecone(texto) {
     } catch (e) { console.error("Error Pinecone:", e); }
 }
 
-// Busca recuerdos relevantes
 async function buscarEnMemoria(pregunta) {
     const vector = generateEmbedding(pregunta);
     try {
@@ -946,7 +942,25 @@ async function buscarEnMemoria(pregunta) {
     } catch (e) { return ""; }
 }
 
-// ── LOGICA DE ENVÍO CORREGIDA ──
+// ── 4. FUNCIÓN CLAVE: GUARDAR API KEY (CORREGIDA PARA GROQ) ──
+function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  
+  // CORRECCIÓN: Ahora validamos 'gsk_' para que no te bloquee el botón
+  if (!key.startsWith('gsk_')) {
+    alert('⚠️ Error: La clave de Groq debe empezar por gsk_');
+    return;
+  }
+  
+  apiKey = key;
+  isDemoMode = false;
+  localStorage.setItem('mia_apikey', key);
+  document.getElementById('apiModal').style.display = 'none';
+  updateApiStatus();
+  location.reload(); // Recargamos para activar la nueva clave
+}
+
+// ── 5. LÓGICA DE ENVÍO DE MENSAJES ──
 async function sendMessage() {
   const input = document.getElementById('userInput');
   const text = input.value.trim();
@@ -957,13 +971,13 @@ async function sendMessage() {
   hideWelcome();
   addMessage('user', text);
 
-  // MODO APRENDER: Si escribes "Aprende esto: ..."
+  // Comando para aprender cosas nuevas
   if (text.toLowerCase().startsWith("aprende esto:")) {
       const info = text.replace(/aprende esto:/i, "").trim();
       showTyping();
       await guardarEnPinecone(info);
       hideTyping();
-      addMessage('ai', "🧠 Entendido. He guardado esa información en mi memoria vectorial para el futuro.");
+      addMessage('ai', "🧠 He memorizado esa información técnica en mi base de datos.");
       return;
   }
 
@@ -975,17 +989,20 @@ async function sendMessage() {
   showTyping();
   setLoading(true);
 
-  // 1. Buscamos en la memoria de Pinecone antes de responder
+  // Buscamos en Pinecone antes de ir a Groq
   const contextoMemoria = await buscarEnMemoria(text);
 
   try {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}` 
+      },
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         messages: [
-          { role: 'system', content: buildSystemPrompt() + (contextoMemoria ? "\n\nDATOS DE TU MEMORIA:\n" + contextoMemoria : "") },
+          { role: 'system', content: buildSystemPrompt() + "\nCONTEXTO DE MEMORIA:\n" + contextoMemoria },
           ...conversationHistory,
           { role: 'user', content: text }
         ],
@@ -1008,8 +1025,99 @@ async function sendMessage() {
   }
 }
 
-// --- El resto de funciones de interfaz (init, applyConfig, etc.) deben ir aquí debajo ---
-// (He omitido el resto por brevedad, pero asegúrate de mantener tus funciones de formato y UI)
+// ── 6. MANTENER RESTO DE FUNCIONES DE UI ──
+function init() {
+  applyTheme(config.color, config.color2);
+  applyNameDisplay();
+  loadConfigUI();
+  updateApiStatus();
+  if (apiKey) document.getElementById('apiModal').style.display = 'none';
+}
+
+function loadConfigUI() {
+  document.getElementById('cfgName').value = config.name;
+  document.getElementById('cfgEmoji').value = config.emoji;
+  document.getElementById('cfgSpec').value = config.spec;
+  document.getElementById('cfgTone').value = config.tone;
+  document.getElementById('cfgExtra').value = config.extra;
+  document.getElementById('cfgColor').value = config.color;
+  document.getElementById('cfgColor2').value = config.color2;
+}
+
+function applyNameDisplay() {
+  document.getElementById('aiNameDisplay').textContent = config.name.toUpperCase();
+  document.getElementById('aiAvatar').textContent = config.emoji;
+  document.getElementById('welcomeIcon').textContent = config.emoji;
+  document.getElementById('welcomeTitle').textContent = `Hola, soy ${config.name}`;
+  document.title = `${config.name} · Mi IA Casera`;
+}
+
+function applyTheme(color, color2) {
+  document.documentElement.style.setProperty('--accent', color);
+  document.documentElement.style.setProperty('--accent2', color2);
+}
+
+function applyConfig() {
+  config.name = document.getElementById('cfgName').value.trim() || 'ARIA';
+  config.emoji = document.getElementById('cfgEmoji').value.trim() || '🤖';
+  config.spec = document.getElementById('cfgSpec').value;
+  config.tone = document.getElementById('cfgTone').value;
+  config.extra = document.getElementById('cfgExtra').value.trim();
+  config.color = document.getElementById('cfgColor').value;
+  config.color2 = document.getElementById('cfgColor2').value;
+  localStorage.setItem('mia_config', JSON.stringify(config));
+  applyTheme(config.color, config.color2);
+  applyNameDisplay();
+  showToast('✅ Configuración aplicada');
+}
+
+function updateApiStatus() {
+  const badge = document.getElementById('apiStatusBadge');
+  badge.className = (apiKey && !isDemoMode) ? 'api-status ok' : 'api-status warn';
+  badge.textContent = (apiKey && !isDemoMode) ? '✅ API Key configurada' : '⚠ Modo demo';
+}
+
+function buildSystemPrompt() {
+  return `Eres ${config.name}, un experto técnico. Responde siempre en español. Tono: ${config.tone}. Extra: ${config.extra}`;
+}
+
+function addMessage(role, text) {
+  const messages = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `message ${role}`;
+  div.innerHTML = `<div class="msg-avatar ${role === 'ai' ? 'ai-av' : 'user-av'}">${role === 'ai' ? config.emoji : '👤'}</div>
+                   <div class="bubble">${formatMessage(text)}</div>`;
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function formatMessage(text) {
+  text = text.replace(/```(\w+)?\n?([\s\S]*?)```/g, (_, l, c) => `<pre><code>${c.trim()}</code></pre>`);
+  return text.replace(/\n/g, '<br>');
+}
+
+function showTyping() {
+  const messages = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'typing-indicator'; div.id = 'typingIndicator';
+  div.innerHTML = `<div class="msg-avatar ai-av">${config.emoji}</div><div class="typing-dots"><span></span><span></span><span></span></div>`;
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function hideTyping() { document.getElementById('typingIndicator')?.remove(); }
+function hideWelcome() { document.getElementById('welcomeScreen')?.remove(); }
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function skipApiKey() { isDemoMode = true; document.getElementById('apiModal').style.display = 'none'; updateApiStatus(); }
+function showApiModal() { document.getElementById('apiModal').style.display = 'flex'; }
+function showToast(m) { 
+    const t = document.createElement('div'); 
+    t.style.cssText = "position:fixed;bottom:20px;right:20px;background:#161b22;color:#00ff88;padding:10px;border-radius:5px;border:1px solid #00ff88;z-index:1000";
+    t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 2000); 
+}
+
 init();
 </script>
 </body>
